@@ -28,12 +28,15 @@ PS. To see these smartphones in your iOS Home app as well, check out [Homebridge
 
 ### Install `whos-home-unifi`
 
+<!-- Disabled until https://github.com/matryer/xbar-plugins/pull/1886 is merged -->
+<!--
 1. Open XBar Plugin Browser: any xbar menu bar item > "xbar" > "Plugin browser..."
 2. Under "Categories", select "Tools"
 3. Find "Who's Home? (for UniFi)"
 4. Click "Install"
 
 #### Manual (if not found in XBar Plugin Browser)
+-->
 
 Download [`whos-home-unifi.1m.py`](./whos-home-unifi.1m.py) and move it into your XBar plugin folder (default: `~/Library/Application Support/xbar/plugins`).
 
