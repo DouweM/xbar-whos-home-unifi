@@ -27,16 +27,25 @@ PS. To see these smartphones in your iOS Home app as well, check out [Homebridge
 - [`aiohttp`](https://pypi.org/project/aiohttp): `pip3 install aiohttp`
 
 ### Install `whos-home-unifi`
-[Open `whos-home-unifi` in XBar Plugin Browser](xbar://app.xbarapp.com/openPlugin?path=Tools%2fwhos-home-unifi.1m.py)
 
-#### Manual
+1. Open XBar Plugin Browser: any xbar menu bar item > "xbar" > "Plugin browser..."
+2. Under "Categories", select "Tools"
+3. Find "Who's Home? (for UniFi)"
+4. Click "Install"
+
+#### Manual (if not found in XBar Plugin Browser)
+
 Download [`whos-home-unifi.1m.py`](./whos-home-unifi.1m.py) and move it into your XBar plugin folder (default: `~/Library/Application Support/xbar/plugins`).
 
 ### Configure
 
-[Open `whos-home-unifi` in XBar Plugin Browser](xbar://app.xbarapp.com/openPlugin?path=Tools%2fwhos-home-unifi.1m.py)
+1. Open XBar Plugin Browser: any xbar menu bar item > "xbar" > "Plugin browser..."
+2. Under "Plugins", select `whos-home-unifi.1m.py`
+3. Configure in the panel
+4. Click "refresh the plugin"
 
-#### Manual
+#### Manual (if not found in XBar Plugin Browser)
+
 Create `whos-home-unifi.1m.py.vars.json` in your XBar plugin folder (default: `~/Library/Application Support/xbar/plugins`) with the following content:
 
 ```json
