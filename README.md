@@ -16,7 +16,7 @@ PS. To see these smartphones in your iOS Home app as well, check out [Homebridge
 
 ## Screenshot
 
-<img src="screenshot.png" width="284">
+<img src="screenshot.png" width="142">
 
 ## Installation
 
