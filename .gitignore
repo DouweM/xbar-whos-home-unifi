@@ -1,0 +1,8 @@
+*.cache.json
+*.vars.json
+*.log
+
+.python-version
+.vscode
+
+.DS_Store
