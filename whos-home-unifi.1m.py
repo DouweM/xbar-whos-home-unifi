@@ -5,7 +5,7 @@
 # <xbar.abouturl>https://github.com/DouweM/xbar-whos-home-unifi</xbar.abouturl>
 # <xbar.author>Douwe Maan</xbar.author>
 # <xbar.author.github>DouweM</xbar.author.github>
-# <xbar.version>v1.0</xbar.version>
+# <xbar.version>v1.0.1</xbar.version>
 # <xbar.image>https://i.postimg.cc/j5CMVk8d/whos-home-unifi.png</xbar.desc>
 # <xbar.dependencies>python,pyunifi,aiohttp</xbar.dependencies>
 
