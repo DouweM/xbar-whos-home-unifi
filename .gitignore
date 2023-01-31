@@ -1,6 +1,7 @@
 *.cache.json
 *.vars.json
 *.log
+.whos-home-unifi
 
 .python-version
 .vscode

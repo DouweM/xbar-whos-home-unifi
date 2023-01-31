@@ -267,8 +267,12 @@ async def read_url(url, session):
 
 
 class Device:
-    IPHONE_IMAGE_URL = "https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/240/apple/325/mobile-phone_1f4f1.png"
-    OTHER_IMAGE_URL = "https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/240/google/350/mobile-phone_1f4f1.png"
+    IPHONE_IMAGE_URL = (
+        "https://em-content.zobj.net/thumbs/240/apple/325/mobile-phone_1f4f1.png"
+    )
+    OTHER_IMAGE_URL = (
+        "https://em-content.zobj.net/thumbs/240/google/350/mobile-phone_1f4f1.png"
+    )
 
     VENDOR_NAMES = {
         320: "iPhone",
