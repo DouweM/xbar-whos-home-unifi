@@ -15,19 +15,11 @@
 # - https://pypi.org/project/aiohttp
 
 ## Settings: xbar menu bar item > xbar > Plugin browser...
-# Controller
-# <xbar.var>string(VAR_CONTROLLER_HOST="192.168.1.1"):      Host of UniFi Controller</xbar.var>
-# <xbar.var>string(VAR_CONTROLLER_USERNAME="admin"):        Username for UniFi Controller</xbar.var>
-# <xbar.var>string(VAR_CONTROLLER_PASSWORD="admin"):        Password for UniFi Controller</xbar.var>
-# <xbar.var>number(VAR_CONTROLLER_PORT=443):                Port for UniFi Controller</xbar.var>
-# <xbar.var>select(VAR_CONTROLLER_VERSION="UDMP-unifiOS"):  Version of UniFi Controller [UDMP-unifiOS,unifiOS,v5,v4]</xbar.var>
-# <xbar.var>boolean(VAR_CONTROLLER_SSL_VERIFY=false):       Verify SSL connection to UniFi Controller</xbar.var>
-#
-# Aliases
-# <xbar.var>string(VAR_ACCESS_POINT_ALIASES=""):    Aliases to use for access points: `<Name/MAC>=<Alias>`, separated by `;`, e.g. `Dream Machine=Living`. (Device aliases can be configured in the UniFi Network UI, e.g. set device name to `Douwe's iPhone` to show as `Douwe`.)</xbar.var>
+# <xbar.var>string(VAR_API_URL="http://localhost:8582"):    homebridge-unifi-occupancy Web Server URL</xbar.var>
+# <xbar.var>string(VAR_USERNAME):                           homebridge-unifi-occupancy Web Server Username</xbar.var>
+# <xbar.var>string(VAR_PASSWORD):                           homebridge-unifi-occupancy Web Server Password</xbar.var>
 #
 # Avatars
-# <xbar.var>string(VAR_AVATARS=""):                 Set Gravatar emails or image URLs for devices to enable avatars: `<Name>=<Email/URL>`, separated by `;`, e.g. `Douwe=hi@douwe.me`</xbar.var>
 # <xbar.var>string(VAR_CLOUDIMAGE_TOKEN=""):        Set Cloudimage.io token to show round avatars instead of square</xbar.var>
 #
 # Event notifications
@@ -36,26 +28,20 @@
 # <xbar.var>boolean(VAR_NOTIFY_CONNECT=true):       Notify when a device connects</xbar.var>
 # <xbar.var>boolean(VAR_NOTIFY_ROAM=false):         Notify when a device roams (moves) between access points</xbar.var>
 # <xbar.var>boolean(VAR_NOTIFY_DISCONNECT=true):    Notify when a device disconnects</xbar.var>
-#
-# Debugging
-# <xbar.var>boolean(VAR_SHOW_TEST_DEVICES=false):   Show dummy devices for each configured avatar instead of real devices</xbar.var>
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 from math import floor
 from pathlib import Path
-import random
 import subprocess
 import tempfile
 import aiohttp
 import asyncio
-import hashlib
 import base64
 import re
 import os
 from collections import defaultdict
-from pyunifi.controller import Controller, APIError
 from yarl import URL
 
 MENUBAR_ICON_B64 = "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"
@@ -74,21 +60,17 @@ MENUBAR_NUMBER_ICONS_B64 = {
     9: f"{b64_prefix}LwPy6vZFAAAAAW9yTlQBz6J3mgAAAzpJREFUSMeNk91rHFUYh58zc2YnO7truhCxpoVUBW1siUpEKwkiiKV+VFoq3Xgjov4BVkEQDfSi/gleCH7infTCu95p8cabkNBu0xRsIwUVv+pXt5vu7M7+vJiT2d1kN7u/gTnnzPu+z5nzvu+BbpmeWQ7uOGJvev+Gh9PVKDLwbDh+L/fs250G3X/MF0Ko/AIQjISYKNk1I+pW9m24rxIJmZgY+br7+CgYA0/k89cQTU+TlUeeDoVMAyEaKNDeE6NgAog+QiTU7no3L2Ruo7FqrprOjPzKcIwFPkM0SXAIs/5AaaJk1hG3EWIoxgKfIpqINg1kro6XAfbtyv+A2EAM/RsLfOwgDVRemx0HLBbmSsXVTQwLO2FC4EtEixjlr86XM2cLM4XwUoapDOqbHPgvb9aidHmuBFh8PDz8rZjiyX5/kwN/AaUJjFafKgK2p4MtzEa5aooJtGcbJoBcBaUOhRTRVx2M1eSx7kMF4GeIsdWZwk4lnI1sFZkN5Kt8dBMTQD5DRJdmCq5OY7zDEn9R50fOcrhTwdkouJh6G0XPu0NNvGhdOsMOYhcXUM/zQQezN28vphFG/nNAeMQIEaNw5UDRIdJSC7HC59xw86MdzGRkl9MoVHiG4AYyMQnKP54laiI1s4IF9pNew7XuWgaPIRITo+h3z49BAcCGARIAHnTFO0cLuML3AOxn2hU9gaYHSAGo5ZVPBuftFbyeEkRu9N3YcuPDXZ0D4JtrwTfFhXT+OkIccmE+Uy4Ll8kBe6i59VuZBxxCyDsF4BFCEm5phut8C8A0y3zCEpuds+2+tHNA6JEA6rUAb/AbAAd4jd387Cw1Z+1IQOKxXcKwzqN8wR80WOYlzjvLr5gtGwIY27e3BfzEq9n6fTcu90EAHv11mrMs8SdTwEPMAHCB9f7OdgDkTk4AcI7vOO62Oj3AdyDkPZ7kIDDNtPuyyNeDIIOO8w9znKFKjSa/8BVznGGg7EDLfyyyyEjqhniA7xq7taO/T9J9hm5IDYiHbNrK3jXAtWkHIj7kOrmeThB1IuAWhZ6rZ4iZQpj0itqMJ+aZHy0HTm1MB22BVxB/U6NNfejTps4GNcSbafT/ojtVLdMsay4AAACEZVhJZk1NACoAAAAIAAUBEgADAAAAAQABAAABGgAFAAAAAQAAAEoBGwAFAAAAAQAAAFIBKAADAAAAAQACAACHaQAEAAAAAQAAAFoAAAAAAAAAkAAAAAEAAACQAAAAAQADoAEAAwAAAAEAAQAAoAIABAAAAAEAAAAioAMABAAAAAEAAAAiAAAAABBCQMEAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjItMTItMzBUMDA6NDc6MDIrMDA6MDClH7CTAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIyLTEyLTMwVDAwOjQ3OjAyKzAwOjAw1EIILwAAABF0RVh0ZXhpZjpDb2xvclNwYWNlADEPmwJJAAAAEnRFWHRleGlmOkV4aWZPZmZzZXQAOTBZjN6bAAAAF3RFWHRleGlmOlBpeGVsWERpbWVuc2lvbgAzNGHPwiIAAAAXdEVYdGV4aWY6UGl4ZWxZRGltZW5zaW9uADM0vFkbpwAAAABJRU5ErkJggg==",
 }
 
-CONTROLLER_HOST = os.getenv("VAR_CONTROLLER_HOST", "192.168.1.1")
-CONTROLLER_USERNAME = os.getenv("VAR_CONTROLLER_USERNAME", "admin")
-CONTROLLER_PASSWORD = os.getenv("VAR_CONTROLLER_PASSWORD", "admin")
-CONTROLLER_PORT = int(os.getenv("VAR_CONTROLLER_PORT", "443"))
-CONTROLLER_VERSION = os.getenv("VAR_CONTROLLER_VERSION", "UDMP-unifiOS")
-CONTROLLER_SSL_VERIFY = os.getenv("VAR_CONTROLLER_SSL_VERIFY") == "true"
+API_URL = os.getenv("VAR_API_URL", "http://localhost:8582")
+API_USERNAME = os.getenv("VAR_API_USERNAME")
+API_PASSWORD = os.getenv("VAR_API_PASSWORD")
 
 CLOUDIMAGE_TOKEN = os.getenv("VAR_CLOUDIMAGE_TOKEN")
+
 TERMINAL_NOTIFIER_PATH = os.getenv("VAR_TERMINAL_NOTIFIER_PATH")
 MENU_BAR_EVENTS = os.getenv("VAR_MENU_BAR_EVENTS") == "true"
 NOTIFY_CONNECT = os.getenv("VAR_NOTIFY_CONNECT") == "true"
 NOTIFY_DISCONNECT = os.getenv("VAR_NOTIFY_DISCONNECT") == "true"
 NOTIFY_ROAM = os.getenv("VAR_NOTIFY_ROAM") == "true"
-
-SHOW_TEST_DEVICES = os.getenv("VAR_SHOW_TEST_DEVICES") == "true"
 
 
 def kv_to_dict(raw):
@@ -96,13 +78,6 @@ def kv_to_dict(raw):
         key_value[0]: key_value[1]
         for key_value in (setting.split("=", 2) for setting in raw.split(";"))
     }
-
-
-ap_aliases = os.getenv("VAR_ACCESS_POINT_ALIASES")
-AP_ALIASES = kv_to_dict(ap_aliases) if ap_aliases else {}
-
-avatars = os.getenv("VAR_AVATARS")
-AVATARS = kv_to_dict(avatars) if avatars else {}
 
 
 XBAR_NESTING = 0
@@ -146,7 +121,7 @@ def xbar(text=None, icon=None, separator=False, nest=-1, **kwargs):
 
 
 def xbar_kv(label, value, tabs=0, **params):
-    xbar("".join([label, "\t" * tabs, str(value)]), **params)
+    xbar("".join([label, "\t" * tabs, str(value or "N/A")]), **params)
 
 
 def xbar_timestamp(label, timestamp, suffix="ago", **params):
@@ -172,6 +147,15 @@ def notify(title, message, image_url=None):
 
 
 # Based on https://gist.github.com/zhangsen/1199964/7225c00d65605b5fc2b106346a6f8b4bca860b6c
+def formatn(n, s):
+    """Add "s" if it's plural"""
+
+    if n == 1:
+        return "1 %s" % s
+    elif n > 1:
+        return "%d %ss" % (n, s)
+
+
 def relative_time(date, suffix=None):
     """Take a datetime and return its "age" as a string.
     The age can be in second, minute, hour, day, month or year. Only the
@@ -182,14 +166,6 @@ def relative_time(date, suffix=None):
 
     if not date:
         return None
-
-    def formatn(n, s):
-        """Add "s" if it's plural"""
-
-        if n == 1:
-            return "1 %s" % s
-        elif n > 1:
-            return "%d %ss" % (n, s)
 
     def q_n_r(a, b):
         """Return quotient and remaining"""
@@ -240,6 +216,9 @@ async def resize_image_content(content, size):
             original_path,
             "-Z",
             str(size * 2),
+            "-p",
+            str(size * 2),
+            str(size * 2),
             "-s",
             "dpiHeight",
             "144.0",
@@ -258,10 +237,13 @@ async def resize_image_content(content, size):
     return content
 
 
-async def read_url(url, session):
+async def read_url(url, session, json=False, auth=None):
     try:
-        async with session.get(URL(url, encoded=True)) as response:
-            return await response.read()
+        async with session.get(URL(url, encoded=True), auth=auth) as response:
+            if json:
+                return await response.json()
+            else:
+                return await response.read()
     except aiohttp.client_exceptions.ClientResponseError:
         return None
 
@@ -270,102 +252,54 @@ class Device:
     IPHONE_IMAGE_URL = (
         "https://em-content.zobj.net/thumbs/240/apple/325/mobile-phone_1f4f1.png"
     )
-    OTHER_IMAGE_URL = (
+    ANDROID_IMAGE_URL = (
         "https://em-content.zobj.net/thumbs/240/google/350/mobile-phone_1f4f1.png"
     )
-
-    VENDOR_NAMES = {
-        320: "iPhone",
-        96: "Samsung Galaxy",
-        7: "Google Pixel",
-    }
-
-    OS_NAMES = {
-        24: "iPhone",
-        56: "Android",
-    }
-
-    PHONE_HINTS = ["phone"]
-
-    NAME_PATTERNS = [
-        r"^(.+?)['’]s",  # "NAME's iPhone"
-        r" (?:van|de) (.+)$",  # "iPhone van NAME" (Dutch), "iPhone de NAME" (Spanish)
-    ]
-    HOSTNAME_PATTERNS = [
-        r"^(.+?)-s-",  # "NAME-s-Pixel"
-        r"^(.+?)s-iPhone$",  # "NAMEs-iPhone"
-        r"^iPhone(?:van|de)(.+)$",  # "iPhonevanNAME" (Dutch), "iPhonedeNAME" (Spanish)
-    ]
 
     def __init__(self, raw):
         self.raw = raw
 
         self.cache = {}
 
-        self._display_name = None
+    @property
+    def mac(self):
+        return self.raw.get("mac")
 
     @property
     def name(self):
-        return self.raw.get("name") or None
+        return self.raw.get("name")
 
     @property
     def hostname(self):
-        return self.raw.get("hostname") or None
+        return self.raw.get("hostname")
 
     @property
-    def device_name(self):
-        return self.name or self.hostname
+    def room_mac(self):
+        return self.raw.get("room_mac")
+
+    @property
+    def room(self):
+        return self.raw.get("room")
+
+    @property
+    def previous_room(self):
+        return self.cache.get("previous_room")
 
     @property
     def ip(self):
         return self.raw.get("ip")
 
     @property
-    def mac(self):
-        return self.raw.get("mac")
-
-    @property
-    def vendor(self):
-        return self.VENDOR_NAMES.get(self.raw.get("dev_vendor"))
-
-    @property
-    def os(self):
-        return self.OS_NAMES.get(self.raw.get("os_name"))
-
-    @property
-    def is_phone(self):
-        return self.raw.get("dev_family") in [9, 12] or any(
-            self.device_name and hint in self.device_name.lower()
-            for hint in self.PHONE_HINTS
-        )
-
-    @property
-    def device_type(self):
-        for vendor in self.VENDOR_NAMES.values():
-            if self.device_name and vendor in self.device_name:
-                return vendor
-
-        return self.vendor or self.os
-
-    @property
-    def descriptor(self):
-        descriptor = self.device_type or "phone"
-        device_name = self.device_name
-        if device_name:
-            descriptor += f" ({device_name})"
-        return descriptor
-
-    @property
     def wifi_ssid(self):
-        return self.raw.get("essid")
+        return self.raw.get("wifi_ssid")
 
     @property
-    def ap_mac(self):
-        return self.raw.get("ap_mac")
+    def fingerprint(self):
+        return self.raw.get("fingerprint")
 
     @property
-    def is_guest(self):
-        return self.raw.get("is_guest")
+    def type(self):
+        return self.raw.get("type")
 
     @property
     def last_connected(self):
@@ -395,58 +329,56 @@ class Device:
         )
 
     @property
+    def should_show(self):
+        # TODO: Configurable
+        # return !!self.type and self.platform.config.deviceType.get(self.type];
+        # return self.type == "smartphone"
+        return self.type in ["smartphone", "laptop", "tablet", "smart_watch"]
+
+    @property
+    def should_show_as_owner(self):
+        # TODO: Configurable
+        # return !!this.type && this.platform.config.showAsOwner === this.type;
+        return self.raw.get("show_as_owner")
+
+    @property
+    def owner(self):
+        return self.raw.get("owner")
+
+    @property
+    def guest(self):
+        return self.raw.get("guest")
+
+    @property
     def display_name(self):
-        if self._display_name is not None:
-            return self._display_name
-
-        def match_pattern(value, patterns):
-            if not value:
-                return None
-
-            for pattern in patterns:
-                match = re.search(pattern, value)
-                if match:
-                    return match[1]
-
-        self._display_name = (
-            match_pattern(self.name, self.NAME_PATTERNS)
-            or match_pattern(self.hostname, self.HOSTNAME_PATTERNS)
-            or f"Unknown {self.descriptor}"
-        )
-        return self._display_name
+        return self.raw.get("display_name")
 
     def __str__(self):
         return self.display_name
 
     @property
-    def avatar_id(self):
-        return AVATARS.get(self.display_name)
+    def default_image_url(self):
+        if self.type == "smartphone":
+            if self.fingerprint.get("vendor") == "Apple, Inc.":
+                return self.IPHONE_IMAGE_URL
+
+            return self.ANDROID_IMAGE_URL
+
+        return self.fingerprint.get("image_url")
 
     @property
-    def default_image_url(self):
-        if self.device_type == "iPhone":
-            return self.IPHONE_IMAGE_URL
+    def avatar_url(self):
+        return self.raw.get("avatar_url")
 
-        return self.OTHER_IMAGE_URL
+    @property
+    def image_url(self):
+        return (self.should_show_as_owner and self.avatar_url) or self.default_image_url
 
     async def default_image(self, session):
         return await read_url(self.default_image_url, session)
 
-    def avatar_url(self, size=32):
-        avatar_id = self.avatar_id
-        if not avatar_id:
-            return None
-
-        # Email
-        if "@" in avatar_id:
-            email_hash = hashlib.md5(avatar_id.encode("utf-8")).hexdigest()
-            return f"https://www.gravatar.com/avatar/{email_hash}?s={size * 3}&d=404"
-
-        # URL
-        return avatar_id
-
     async def avatar(self, session, size=32):
-        avatar_url = self.avatar_url(size=size)
+        avatar_url = self.avatar_url
         if not avatar_url:
             return None
 
@@ -461,13 +393,10 @@ class Device:
 
         return content
 
-    def image_url(self, size=32):
-        return self.avatar_url(size=size) or self.default_image_url
-
     async def image(self, session, size=32):
-        content = await self.avatar(session, size=size) or await self.default_image(
-            session
-        )
+        content = (
+            self.should_show_as_owner and await self.avatar(session, size=size)
+        ) or await self.default_image(session)
         if not content:
             return None
 
@@ -484,23 +413,15 @@ class Device:
         return base64.b64encode(content).decode()
 
     @property
-    def ap_name(self):
-        return self.cache.get("ap_name", self.ap_mac)
-
-    @property
-    def previous_ap_name(self):
-        return self.cache.get("previous_ap_name")
-
-    @property
     def event(self):
-        previous_ap = self.previous_ap_name
-        current_ap = self.ap_name
+        previous_room = self.previous_room
+        current_room = self.room
 
-        if current_ap == previous_ap:
+        if current_room == previous_room:
             return (
                 None,
                 [
-                    f"has been in {current_ap}",
+                    f"has been in {current_room}",
                     *(
                         [
                             f"for {relative_time(self.last_roamed) or relative_time(self.last_connected)}"
@@ -511,11 +432,11 @@ class Device:
                 ],
             )
 
-        if not current_ap:
+        if not current_room:
             return (
                 "disconnect",
                 [
-                    "left",
+                    "left" if self.should_show_as_owner else "disconnected",
                     *(
                         [f"after {relative_time(self.last_connected)}"]
                         if self.last_connected
@@ -524,12 +445,12 @@ class Device:
                 ],
             )
 
-        if not previous_ap:
+        if not previous_room:
             return (
                 "connect",
                 [
-                    "arrived",
-                    f"via {current_ap}",
+                    "arrived" if self.should_show_as_owner else "connected",
+                    f"via {current_room}",
                     *(
                         [f"after {relative_time(self.last_disconnected)} away"]
                         if self.last_disconnected
@@ -542,7 +463,7 @@ class Device:
             "roam",
             [
                 "moved",
-                f"from {previous_ap} to {current_ap}",
+                f"from {previous_room} to {current_room}",
                 *(
                     [
                         f"after {relative_time(self.last_roamed) or relative_time(self.last_connected)}"
@@ -555,11 +476,11 @@ class Device:
 
 
 class FakeDevice(Device):
-    def __init__(self, display_name, ap_name=None):
+    def __init__(self, display_name, room=None):
         super().__init__({})
 
         self._display_name = display_name
-        self._ap_name = ap_name
+        self._room = room
 
     @property
     def display_name(self):
@@ -574,64 +495,48 @@ class FakeDevice(Device):
         return self._display_name
 
     @property
-    def ap_mac(self, *_):
-        return self._ap_name
+    def fingerprint(self):
+        return {}
+
+    @property
+    def type(self):
+        return "smartphone"
+
+    @property
+    def room_mac(self, *_):
+        return self._room
 
 
 class WhosHomeApp:
     CACHE_PATH = Path(".whos-home-unifi/cache.json")
 
     def __init__(self):
-        self._controller = None
         self._devices = None
-        self._ap_names = None
 
-    @property
-    def unifi_controller_url(self):
-        https = CONTROLLER_PORT == 443
-        return f"http{'s' if https else ''}://{CONTROLLER_HOST}:{CONTROLLER_PORT}"
-
-    @property
-    def controller(self):
-        if self._controller is not None:
-            return self._controller
-
-        self._controller = Controller(
-            CONTROLLER_HOST,
-            username=CONTROLLER_USERNAME,
-            password=CONTROLLER_PASSWORD,
-            port=CONTROLLER_PORT,
-            version=CONTROLLER_VERSION,
-            ssl_verify=CONTROLLER_SSL_VERIFY,
-        )
-        return self._controller
-
-    @property
-    def devices(self):
+    async def devices(self, session):
         if self._devices is not None:
             return self._devices
 
-        if SHOW_TEST_DEVICES:
-            devices = [
-                FakeDevice(name, ap_name=random.choice(list(self.ap_names.values())))
-                for name in [
-                    *AVATARS.keys(),
-                    "iPhone",
-                    "Android",
-                ]
-            ]
-        else:
-            devices = [
-                device
-                for device in (
-                    Device(client) for client in self.controller.get_clients()
-                )
-                if device.is_phone and device.ap_mac
-            ]
+        clients = await read_url(
+            API_URL + "/clients",
+            session,
+            json=True,
+            auth=(
+                aiohttp.BasicAuth(API_USERNAME, API_PASSWORD)
+                if API_USERNAME or API_PASSWORD
+                else None
+            ),
+        )
+        devices = [
+            device
+            for device in (Device(client) for client in clients)
+            if device.should_show and device.room
+        ]
 
         devices.sort(
             key=lambda device: (
-                not device.avatar_id,  # Devices with avatars first
+                not device.should_show_as_owner,  # Devices that follow owners first
+                device.image_url != device.avatar_url,  # Devices with avatars first
                 device.display_name,  # Then sorted by name
             ),
         )
@@ -639,31 +544,14 @@ class WhosHomeApp:
         self._devices = devices
         return self._devices
 
-    @property
-    def ap_names(self):
-        if self._ap_names is not None:
-            return self._ap_names
-
-        if SHOW_TEST_DEVICES:
-            return {name: name for name in (f"Laboratory {i}" for i in range(1, 5))}
-
-        self._ap_names = {
-            ap["mac"]: AP_ALIASES.get(ap["name"])
-            or AP_ALIASES.get(ap["mac"])
-            or ap["name"]
-            for ap in self.controller.get_aps()
-            if ap.get("is_access_point", False)
-        }
-        return self._ap_names
-
-    @property
-    def devices_by_ap_name(self):
+    async def devices_by_room(self, session):
         ap_devices = defaultdict(list)
-        for device in self.devices:
-            ap_devices[device.ap_name].append(device)
+        devices = await self.devices(session)
+        for device in devices:
+            ap_devices[device.room].append(device)
         return ap_devices
 
-    def changed_devices(self):
+    async def changed_devices(self, session):
         ts = int(datetime.utcnow().timestamp())
         cache = {}
 
@@ -674,7 +562,8 @@ class WhosHomeApp:
         except FileNotFoundError:
             previous_cache = {}
 
-        devices_by_name = {device.display_name: device for device in self.devices}
+        devices = await self.devices(session)
+        devices_by_name = {device.display_name: device for device in devices}
         all_device_names = previous_cache.keys() | devices_by_name.keys()
 
         changed_devices = []
@@ -682,12 +571,14 @@ class WhosHomeApp:
             device_cache = previous_cache.get(device_name, {})
             cache[device_name] = device_cache
 
+            # TODO: FakeDevice (when leaving) has wrong icon because no fingerprint
+            # TODO: Include full raw
             device = devices_by_name.get(device_name) or FakeDevice(device_name)
             device.cache = device_cache
 
-            # Sets device.ap_name and device.previous_ap_name through device_cache
-            device_cache["previous_ap_name"] = device_cache.get("ap_name")
-            device_cache["ap_name"] = self.ap_names.get(device.ap_mac, device.ap_mac)
+            # Sets device.room and device.previous_room through device_cache
+            device_cache["previous_room"] = device_cache.get("room")
+            device_cache["room"] = device.room
 
             change_type, _ = device.event
 
@@ -727,13 +618,25 @@ class WhosHomeApp:
             )
 
             xbar_kv("Name:", device.name, tabs=4, separator=True)
-            xbar_kv("Hostname:", device.hostname or "N/A", tabs=3)
-            xbar_kv("MAC:", device.mac, tabs=4, alternate=True)
+            xbar_kv("Hostname:", device.hostname, tabs=3)
             xbar_kv("IP:", device.ip, tabs=5)
+            xbar_kv("MAC:", device.mac, tabs=4, alternate=True)
+            xbar_kv("WiFi:", device.wifi_ssid, tabs=4)
+            xbar_kv("AP MAC:", device.room_mac, tabs=4, alternate=True)
 
-            xbar_kv("WiFi:", device.wifi_ssid, tabs=4, separator=True)
-            xbar_kv("AP MAC:", device.ap_mac, tabs=4, alternate=True)
-            xbar_kv("Guest:", "Yes" if device.is_guest else "No", tabs=4)
+            fp = device.fingerprint
+            xbar_kv("Device:", fp.get("name"), tabs=4, separator=True)
+            xbar_kv("Device:", device.type, tabs=4, alternate=True)
+            xbar_kv("Vendor:", fp.get("vendor"), tabs=4)
+            xbar_kv("Vendor:", fp.get("vendor_id"), tabs=4, alternate=True)
+            xbar_kv("OS Class:", fp.get("os_class"), tabs=3)
+            xbar_kv("OS Class:", fp.get("os_class_id"), tabs=3, alternate=True)
+            xbar_kv("OS Name:", fp.get("os_name"), tabs=3)
+            xbar_kv("OS Name:", fp.get("os_name_id"), tabs=3, alternate=True)
+            xbar_kv("Type:", fp.get("type"), tabs=4)
+            xbar_kv("Type:", fp.get("type_id"), tabs=4, alternate=True)
+            xbar_kv("Family:", fp.get("family"), tabs=4)
+            xbar_kv("Family:", fp.get("family_id"), tabs=4, alternate=True)
 
             xbar_timestamp(
                 "Last connected:", device.last_connected, tabs=2, separator=True
@@ -741,27 +644,11 @@ class WhosHomeApp:
             xbar_timestamp("Last roamed:", device.last_roamed, tabs=3)
             xbar_timestamp("Last disconnected:", device.last_disconnected, tabs=1)
 
-            if device.raw:
-                xbar("Raw", separator=True)
-
-                with xbar_submenu():
-                    for key, value in device.raw.items():
-                        if isinstance(value, int) and re.match(
-                            r"^[0-9]{10}$", str(value)
-                        ):
-                            value = datetime.fromtimestamp(value).astimezone()
-                            xbar_timestamp(f"{key} = ", value)
-                        else:
-                            xbar_kv(f"{key} = ", value)
-
     def xbar_icon(self, device_count=None):
         xbar(templateImage=MENUBAR_NUMBER_ICONS_B64.get(device_count, MENUBAR_ICON_B64))
 
     def xbar_refresh(self, **params):
         xbar("Refresh", refresh=True, **params)
-
-    def xbar_unifi_controller(self, **params):
-        xbar("Open UniFi Controller...", href=self.unifi_controller_url, **params)
 
     def xbar_error(self, message, err=None, **params):
         xbar(message, color="red", icon="warning", **params)
@@ -772,23 +659,22 @@ class WhosHomeApp:
 async def main():
     app = WhosHomeApp()
 
-    try:
-        devices = app.devices
-    except APIError as err:
-        app.xbar_icon()
-
-        app.xbar_error(
-            "Failed to connect to UniFi Controller",
-            err,
-            separator=True,
-        )
-        app.xbar_unifi_controller()
-        app.xbar_refresh()
-
-        return
-
     async with aiohttp.ClientSession(raise_for_status=True) as session:
-        changed_devices = app.changed_devices()
+        try:
+            devices = await app.devices(session)
+        except aiohttp.ClientError as err:
+            app.xbar_icon()
+
+            app.xbar_error(
+                "Failed to connect to homebridge-unifi-occupancy",
+                err,
+                separator=True,
+            )
+            app.xbar_refresh()
+
+            return
+
+        changed_devices = await app.changed_devices(session)
         if changed_devices:
             for device in changed_devices:
                 _, [event_verb, *event_context] = device.event
@@ -804,28 +690,40 @@ async def main():
                 notify(
                     title=title,
                     message=" ".join(event_context),
-                    image_url=device.image_url(size=64),
+                    image_url=device.image_url,
                 )
 
         if not (changed_devices and MENU_BAR_EVENTS):
-            app.xbar_icon(len(devices))
+            owner_device_count = sum(1 for d in devices if d.should_show_as_owner)
+            app.xbar_icon(owner_device_count)
 
         if devices:
-            for ap, devices in app.devices_by_ap_name.items():
+            devices_by_room = await app.devices_by_room(session)
+            for ap, devices in devices_by_room.items():
                 xbar(ap, separator=True)
 
+                owner_devices = set()
+                other_devices = set()
                 for device in devices:
+                    if device.should_show_as_owner:
+                        owner_devices.add(device)
+                    else:
+                        other_devices.add(device)
+
+                for device in owner_devices:
                     await app.xbar_device(device, session)
 
-                if len(devices) > 5:
-                    xbar(f"{len(devices)} people", size=11)
+                if other_devices:
+                    xbar(formatn(len(other_devices), "device"), size=11)
+                    with xbar_submenu():
+                        for device in other_devices:
+                            await app.xbar_device(device, session)
 
             xbar(separator=True)
         else:
             xbar("No one's home", separator=True)
 
     app.xbar_refresh()
-    app.xbar_unifi_controller(alternate=True)
 
 
 if __name__ == "__main__":
